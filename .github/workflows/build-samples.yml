@@ -88,40 +88,25 @@ jobs:
             /p:Configuration=Release /p:Platform=x64 /m /nologo
 
       # Confirm all DLLs landed in sdk-ruby/bin/ and can actually be loaded.
-      - name: Verify sdk-ruby/bin/ contents and DLL loadability
+      # Uses LoadLibraryEx (single-line C# to avoid YAML/heredoc conflict).
+      - name: Verify sdk-ruby/bin/ DLL loadability
         run: |
-          Write-Host "=== sdk-ruby\bin\ ==="
-          dir sdk-ruby\bin\
-
-          $required = @("SketchUpBridge.dll", "SketchUpAPI.dll", "SketchUpCommonPreferences.dll")
-          foreach ($dll in $required) {
-            $path = "sdk-ruby\bin\$dll"
-            if (-not (Test-Path $path)) { throw "MISSING: $path" }
-            Write-Host "EXISTS: $path"
-          }
-
-          # Smoke-test: try loading each DLL with LoadLibraryEx to catch error 126
-          # before Ruby even runs.
-          Add-Type -TypeDefinition @"
-            using System;
-            using System.Runtime.InteropServices;
-            public class NativeLoader {
-              [DllImport("kernel32", SetLastError=true)]
-              public static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, uint dwFlags);
-              public const uint LOAD_WITH_ALTERED_SEARCH_PATH = 0x00000008;
-            }
-"@
+          $cs = 'using System; using System.Runtime.InteropServices; public class NL { [DllImport("kernel32",SetLastError=true)] public static extern IntPtr LoadLibraryEx(string f, IntPtr h, uint d); }'
+          Add-Type -TypeDefinition $cs
           $binDir = (Resolve-Path "sdk-ruby\bin").Path
-          foreach ($dll in $required) {
+          Write-Host "=== sdk-ruby\bin ==="
+          dir $binDir
+          foreach ($dll in @("SketchUpCommonPreferences.dll","SketchUpAPI.dll","SketchUpBridge.dll")) {
             $full = Join-Path $binDir $dll
-            $h = [NativeLoader]::LoadLibraryEx($full, [IntPtr]::Zero, [NativeLoader]::LOAD_WITH_ALTERED_SEARCH_PATH)
+            if (-not (Test-Path $full)) { throw "MISSING: $dll" }
+            $h = [NL]::LoadLibraryEx($full, [IntPtr]::Zero, 8)
             if ($h -eq [IntPtr]::Zero) {
               $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-              throw "LoadLibraryEx FAILED for $dll  error=$err"
+              throw "LoadLibraryEx FAILED: $dll  Win32Error=$err"
             }
-            Write-Host "LOADABLE: $dll  handle=0x$($h.ToString('X'))"
+            Write-Host "LOADABLE: $dll"
           }
-          Write-Host "All DLLs verified OK"
+          Write-Host "All DLLs OK"
 
       # ── Ruby setup ────────────────────────────────────────────────────────
       - name: Setup Ruby
