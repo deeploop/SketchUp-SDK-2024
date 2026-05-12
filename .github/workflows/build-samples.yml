@@ -1,0 +1,56 @@
+name: Build SketchUp SDK Samples
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build:
+    name: Build & Run Samples (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build WritingToAskpFile
+        working-directory: samples/WritingToAskpFile
+        run: |
+          msbuild WritingToAskpFile.sln `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /m `
+            /nologo
+
+      - name: Run WritingToAskpFile
+        working-directory: samples/WritingToAskpFile/Release_x64
+        run: .\WritingToAskpFile.exe
+
+      - name: Build ReadingFromAskpFile
+        working-directory: samples/ReadingFromAskpFile
+        run: |
+          msbuild ReadingFromAskpFile.sln `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /m `
+            /nologo
+
+      - name: Run ReadingFromAskpFile
+        working-directory: samples/ReadingFromAskpFile/Release_x64
+        run: .\ReadingFromAskpFile.exe
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-samples-x64-release
+          path: |
+            samples/WritingToAskpFile/Release_x64/*.exe
+            samples/WritingToAskpFile/Release_x64/*.skp
+            samples/ReadingFromAskpFile/Release_x64/*.exe
+          retention-days: 7
