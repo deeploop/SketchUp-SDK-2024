@@ -6,8 +6,9 @@ require 'ffi'
 module SketchUpBridge
   extend FFI::Library
 
-  # Locate sdk-ruby/bin/ relative to this file (lib/sketchup_sdk/).
-  BIN_DIR = File.expand_path('../../../bin', __dir__).freeze
+  # __dir__ is sdk-ruby/lib/sketchup_sdk/
+  # ../../bin resolves to sdk-ruby/bin/ where MSBuild places SketchUpBridge.dll
+  BIN_DIR = File.expand_path('../../bin', __dir__).freeze
 
   # Make Windows find SketchUpAPI.dll (bridge dependency) from the same dir.
   if FFI::Platform.windows?

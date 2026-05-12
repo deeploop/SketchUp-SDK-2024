@@ -87,9 +87,13 @@ jobs:
           msbuild SketchUpBridge.sln `
             /p:Configuration=Release /p:Platform=x64 /m /nologo
 
-      - name: Verify bridge DLL and SDK DLLs in sdk-ruby/bin/
+      # Confirm all three DLLs landed in sdk-ruby/bin/ before Ruby loads them.
+      - name: Verify sdk-ruby/bin/ contents
         run: |
+          Write-Host "=== sdk-ruby\bin\ ==="
           dir sdk-ruby\bin\
+          if (-not (Test-Path "sdk-ruby\bin\SketchUpBridge.dll"))  { throw "SketchUpBridge.dll missing" }
+          if (-not (Test-Path "sdk-ruby\bin\SketchUpAPI.dll"))     { throw "SketchUpAPI.dll missing" }
 
       # ── Ruby setup ────────────────────────────────────────────────────────
       - name: Setup Ruby
@@ -102,9 +106,15 @@ jobs:
         working-directory: sdk-ruby
         run: gem install ffi --no-document
 
+      # Add sdk-ruby/bin/ to the process PATH so Windows can resolve
+      # SketchUpAPI.dll when Ruby loads SketchUpBridge.dll via FFI.
+      - name: Add sdk-ruby/bin to PATH
+        run: |
+          $binDir = Resolve-Path "sdk-ruby\bin"
+          Write-Host "Adding to PATH: $binDir"
+          echo "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       # ── Run example ───────────────────────────────────────────────────────
-      # generate_office.rb uses the Sketchup::Model / Entities / Face / Material
-      # API (mirrors the official SketchUp Ruby API) to build a 3-room office.
       - name: Generate RubyOfficeBuilding.skp
         working-directory: sdk-ruby/examples
         run: ruby generate_office.rb
