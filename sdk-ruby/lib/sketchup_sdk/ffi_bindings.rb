@@ -7,12 +7,27 @@ module SketchUpBridge
   extend FFI::Library
 
   # __dir__ is sdk-ruby/lib/sketchup_sdk/
-  # ../../bin resolves to sdk-ruby/bin/ where MSBuild places SketchUpBridge.dll
+  # ../../bin  →  sdk-ruby/bin/  (MSBuild output; also holds SketchUpAPI.dll)
   BIN_DIR = File.expand_path('../../bin', __dir__).freeze
 
-  # Make Windows find SketchUpAPI.dll (bridge dependency) from the same dir.
   if FFI::Platform.windows?
-    ENV['PATH'] = "#{BIN_DIR};#{ENV['PATH']}"
+    # Windows DLL search order for transitive dependencies does NOT automatically
+    # include the directory of the DLL being loaded — it uses the calling EXE
+    # dir, System32, Windows dir, current dir, and PATH.
+    #
+    # Solution: use Ruby's built-in Fiddle to load the SketchUp SDK DLLs by
+    # absolute path BEFORE FFI touches the bridge.  Once a DLL is in the
+    # process's loaded-module list Windows finds it by name immediately, so
+    # LoadLibrary('SketchUpBridge.dll') resolves its SketchUpAPI.dll import
+    # without needing any PATH / search-order tricks.
+    require 'fiddle'
+    [
+      File.join(BIN_DIR, 'SketchUpCommonPreferences.dll'),
+      File.join(BIN_DIR, 'SketchUpAPI.dll'),
+    ].each do |dll|
+      warn "  [ffi_bindings] pre-loading #{dll}" if $VERBOSE
+      Fiddle.dlopen(dll)
+    end
   end
 
   ffi_lib File.join(BIN_DIR, 'SketchUpBridge.dll')
@@ -46,8 +61,8 @@ module SketchUpBridge
   attach_function :face_set_back_material,  [:pointer, :pointer], :void
   attach_function :face_set_layer,          [:pointer, :pointer], :void
 
-  # ── Verification / read-back ─────────────────────────────────────────────
-  # Opens an existing .skp file; returns model handle (or null pointer on error).
+  # ── Verification / read-back ──────────────────────────────────────────────
+  # Opens an existing .skp file; returns model handle (or null pointer).
   attach_function :model_open,      [:string],           :pointer
   # Fills a caller-allocated int[8] with entity counts (edges, faces, …).
   attach_function :model_get_stats, [:pointer, :pointer], :void
