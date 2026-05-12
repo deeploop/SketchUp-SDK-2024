@@ -7,8 +7,11 @@ on:
     branches: ["**"]
 
 jobs:
-  build:
-    name: Build & Run Samples (Windows x64)
+  # ============================================================
+  # Job 1: C/C++ samples (MSBuild on Windows)
+  # ============================================================
+  build-cpp:
+    name: C++ Samples (Windows x64)
     runs-on: windows-latest
 
     steps:
@@ -18,66 +21,113 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      # ── GenerateCADModel ─────────────────────────────────────────────────
+      # ── GenerateCADModel ───────────────────────────────────────────────────
       - name: Build GenerateCADModel
         working-directory: samples/GenerateCADModel
         run: |
           msbuild GenerateCADModel.sln `
-            /p:Configuration=Release `
-            /p:Platform=x64 `
-            /m `
-            /nologo
+            /p:Configuration=Release /p:Platform=x64 /m /nologo
 
-      - name: Generate OfficeBuilding.skp
+      - name: Generate OfficeBuilding.skp (C++)
         working-directory: samples/GenerateCADModel/Release_x64
         run: .\GenerateCADModel.exe
 
-      # ── WritingToAskpFile ────────────────────────────────────────────────
+      # ── WritingToAskpFile ──────────────────────────────────────────────────
       - name: Build WritingToAskpFile
         working-directory: samples/WritingToAskpFile
         run: |
           msbuild WritingToAskpFile.sln `
-            /p:Configuration=Release `
-            /p:Platform=x64 `
-            /m `
-            /nologo
+            /p:Configuration=Release /p:Platform=x64 /m /nologo
 
       - name: Run WritingToAskpFile
         working-directory: samples/WritingToAskpFile/Release_x64
         run: .\WritingToAskpFile.exe
 
-      # ── ReadingFromAskpFile ──────────────────────────────────────────────
+      # ── ReadingFromAskpFile ────────────────────────────────────────────────
       - name: Build ReadingFromAskpFile
         working-directory: samples/ReadingFromAskpFile
         run: |
           msbuild ReadingFromAskpFile.sln `
-            /p:Configuration=Release `
-            /p:Platform=x64 `
-            /m `
-            /nologo
+            /p:Configuration=Release /p:Platform=x64 /m /nologo
 
       - name: Run ReadingFromAskpFile
         working-directory: samples/ReadingFromAskpFile/Release_x64
         run: .\ReadingFromAskpFile.exe
 
-      # ── Artifacts ────────────────────────────────────────────────────────
-      - name: Upload generated SKP files
+      - name: Upload C++ generated SKP files
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: generated-skp-files
+          name: cpp-generated-skp
           path: |
             samples/GenerateCADModel/Release_x64/OfficeBuilding.skp
             samples/WritingToAskpFile/Release_x64/new_model.skp
           retention-days: 30
 
-      - name: Upload executables
+  # ============================================================
+  # Job 2: Ruby API — build bridge DLL, then run Ruby script
+  # ============================================================
+  build-ruby:
+    name: Ruby API → SKP (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # ── Build SketchUpBridge.dll ───────────────────────────────────────────
+      # Compiles the thin C++ bridge that wraps opaque SDK handles into plain
+      # void* so Ruby FFI can call the SketchUp C API without struct-by-value issues.
+      - name: Build SketchUpBridge.dll
+        working-directory: sdk-ruby/ext/bridge
+        run: |
+          msbuild SketchUpBridge.sln `
+            /p:Configuration=Release /p:Platform=x64 /m /nologo
+
+      - name: Verify bridge DLL and SDK DLLs in sdk-ruby/bin/
+        run: |
+          dir sdk-ruby\bin\
+
+      # ── Ruby setup ────────────────────────────────────────────────────────
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: Install ffi gem
+        working-directory: sdk-ruby
+        run: gem install ffi --no-document
+
+      # ── Run example ───────────────────────────────────────────────────────
+      # generate_office.rb uses the Sketchup::Model / Entities / Face / Material
+      # API (mirrors the official SketchUp Ruby API) to build a 3-room office.
+      - name: Generate RubyOfficeBuilding.skp
+        working-directory: sdk-ruby/examples
+        run: ruby generate_office.rb
+
+      - name: Show file info
+        working-directory: sdk-ruby/examples
+        run: |
+          dir RubyOfficeBuilding.skp
+          Write-Host "SKP generated successfully via Ruby API"
+
+      # ── Artifact ──────────────────────────────────────────────────────────
+      - name: Upload Ruby-generated SKP
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-sample-executables
-          path: |
-            samples/GenerateCADModel/Release_x64/GenerateCADModel.exe
-            samples/WritingToAskpFile/Release_x64/WritingToAskpFile.exe
-            samples/ReadingFromAskpFile/Release_x64/ReadingFromAskpFile.exe
+          name: ruby-generated-skp
+          path: sdk-ruby/examples/RubyOfficeBuilding.skp
+          retention-days: 30
+
+      - name: Upload bridge DLL (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sketchup-bridge-dll
+          path: sdk-ruby/bin/SketchUpBridge.dll
           retention-days: 7

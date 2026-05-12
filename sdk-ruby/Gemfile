@@ -1,0 +1,4 @@
+source 'https://rubygems.org'
+
+# Ruby FFI — calls SketchUpBridge.dll without compiling a native extension.
+gem 'ffi', '~> 1.16'
