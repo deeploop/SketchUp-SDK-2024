@@ -18,6 +18,21 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      # ── GenerateCADModel ─────────────────────────────────────────────────
+      - name: Build GenerateCADModel
+        working-directory: samples/GenerateCADModel
+        run: |
+          msbuild GenerateCADModel.sln `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /m `
+            /nologo
+
+      - name: Generate OfficeBuilding.skp
+        working-directory: samples/GenerateCADModel/Release_x64
+        run: .\GenerateCADModel.exe
+
+      # ── WritingToAskpFile ────────────────────────────────────────────────
       - name: Build WritingToAskpFile
         working-directory: samples/WritingToAskpFile
         run: |
@@ -31,6 +46,7 @@ jobs:
         working-directory: samples/WritingToAskpFile/Release_x64
         run: .\WritingToAskpFile.exe
 
+      # ── ReadingFromAskpFile ──────────────────────────────────────────────
       - name: Build ReadingFromAskpFile
         working-directory: samples/ReadingFromAskpFile
         run: |
@@ -44,13 +60,24 @@ jobs:
         working-directory: samples/ReadingFromAskpFile/Release_x64
         run: .\ReadingFromAskpFile.exe
 
-      - name: Upload build artifacts
+      # ── Artifacts ────────────────────────────────────────────────────────
+      - name: Upload generated SKP files
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-samples-x64-release
+          name: generated-skp-files
           path: |
-            samples/WritingToAskpFile/Release_x64/*.exe
-            samples/WritingToAskpFile/Release_x64/*.skp
-            samples/ReadingFromAskpFile/Release_x64/*.exe
+            samples/GenerateCADModel/Release_x64/OfficeBuilding.skp
+            samples/WritingToAskpFile/Release_x64/new_model.skp
+          retention-days: 30
+
+      - name: Upload executables
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-sample-executables
+          path: |
+            samples/GenerateCADModel/Release_x64/GenerateCADModel.exe
+            samples/WritingToAskpFile/Release_x64/WritingToAskpFile.exe
+            samples/ReadingFromAskpFile/Release_x64/ReadingFromAskpFile.exe
           retention-days: 7
