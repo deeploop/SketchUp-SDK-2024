@@ -20,6 +20,7 @@
 
 #include <cstring>
 #include <new>
+#include <cstdio>
 
 #define BRIDGE extern "C" __declspec(dllexport)
 
@@ -146,4 +147,24 @@ BRIDGE void face_set_back_material(void* face_ptr, void* mat_ptr) {
 BRIDGE void face_set_layer(void* face_ptr, void* layer_ptr) {
   SUDrawingElementRef elem = SUFaceToDrawingElement(WrapFace(face_ptr));
   SUDrawingElementSetLayer(elem, WrapLayer(layer_ptr));
+}
+
+// ── Model read-back / verification ──────────────────────────────────────────
+
+// Opens an existing .skp file. Returns model handle, or nullptr on failure.
+BRIDGE void* model_open(const char* path) {
+  SUModelRef m = SU_INVALID;
+  if (SUModelCreateFromFile(&m, path) != SU_ERROR_NONE) return nullptr;
+  return m.ptr;
+}
+
+// Fills stats_out[8] with entity counts indexed by SUModelStatistics::SUEntityType:
+//   [0] edges  [1] faces  [2] component-instances  [3] groups
+//   [4] images [5] component-definitions [6] layers [7] materials
+BRIDGE void model_get_stats(void* model_ptr, int* stats_out) {
+  struct SUModelStatistics s;
+  std::memset(&s, 0, sizeof(s));
+  SUModelGetStatistics(WrapModel(model_ptr), &s);
+  for (int i = 0; i < static_cast<int>(SUModelStatistics::SUNumEntityTypes); ++i)
+    stats_out[i] = s.entity_counts[i];
 }

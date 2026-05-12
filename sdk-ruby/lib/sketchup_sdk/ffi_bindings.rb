@@ -44,4 +44,10 @@ module SketchUpBridge
   attach_function :face_set_front_material, [:pointer, :pointer], :void
   attach_function :face_set_back_material,  [:pointer, :pointer], :void
   attach_function :face_set_layer,          [:pointer, :pointer], :void
+
+  # ── Verification / read-back ─────────────────────────────────────────────
+  # Opens an existing .skp file; returns model handle (or null pointer on error).
+  attach_function :model_open,      [:string],           :pointer
+  # Fills a caller-allocated int[8] with entity counts (edges, faces, …).
+  attach_function :model_get_stats, [:pointer, :pointer], :void
 end
