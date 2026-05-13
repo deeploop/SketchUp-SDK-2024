@@ -1,0 +1,89 @@
+{
+  "system_info": {
+    "brand": "North Star (北二高)",
+    "version": "2025.12",
+    "catalog_page_ref": 25,
+    "unit": "mm"
+  },
+  "lut_offsets": {
+    "compact_format": {
+      "anchor":        "Board",
+      "id":            1,
+      "matrix":        5,
+      "width":         6,
+      "height":        7,
+      "thickness":     8,
+      "name":          10,
+      "category":      11,
+      "hardware_type": 12,
+      "record_length": 13
+    },
+    "full_positional_format": {
+      "anchor":        "Board",
+      "id":            3,
+      "matrix":        8,
+      "width":         43,
+      "height":        44,
+      "thickness":     45,
+      "name":          90,
+      "category":      91,
+      "hardware_type": 98,
+      "system_label":  110
+    }
+  },
+  "physical_limits": {
+    "folding": {
+      "frame_type":        "LS",
+      "panel_count_parity": "even",
+      "max_panel_width":   500,
+      "max_total_height":  2400,
+      "height_warning_above": 2400
+    },
+    "sync_sliding": {
+      "min_panel_width": 700,
+      "reason": "buffer hardware requires ≥ 700mm panel width"
+    },
+    "pivot": {
+      "top_clearance":    16,
+      "bottom_clearance": 15,
+      "side_clearance":    7
+    }
+  },
+  "height_deductions": {
+    "Folding":      64,
+    "Sync_Sliding": 64,
+    "Suspended":    64,
+    "Floor":        32,
+    "Pivot":        31
+  },
+  "divider_matching": [
+    { "glass_thickness_lte": 5,  "rod_width": 10 },
+    { "glass_thickness_lte": 11, "rod_width": 20 }
+  ],
+  "profile_database": {
+    "LC": { "w": 16.0,  "d": 30.0, "style": "Ultra-Slim"    },
+    "LD": { "w": 22.5,  "d": 34.0, "style": "Elegant"        },
+    "LE": { "w": 33.0,  "d": 30.0, "style": "Curved"         },
+    "LS": { "w": 33.0,  "d": 34.0, "style": "Standard/Heavy" }
+  },
+  "hardware_specs": {
+    "折門吊輪":   { "w": 58.3, "h": 23.1, "d": 26.3 },
+    "連動吊片":   { "w": 40.0, "h": 15.0, "d": 20.0 },
+    "緩衝器":     { "w": 80.0, "h": 30.0, "d": 25.0 },
+    "嵌入式把手": { "w": 19.0, "h": 105.0, "d": 12.0, "z_ref": 1050 },
+    "天地鉸鍊":   { "w": 10.0, "h": 3.5,  "d": 20.0 }
+  },
+  "frame_colors": {
+    "鋁本色": [210, 210, 200],
+    "白砂色": [235, 232, 225],
+    "黑砂色": [45,  45,  48 ],
+    "淺灰砂": [170, 168, 165],
+    "香檳金": [212, 185, 120]
+  },
+  "glass_types": {
+    "長虹玻璃": { "color": [200, 220, 230], "alpha": 0.55 },
+    "灰玻":     { "color": [140, 145, 148], "alpha": 0.60 },
+    "黑玻":     { "color": [30,  35,  38 ], "alpha": 0.65 },
+    "清玻璃":   { "color": [200, 230, 240], "alpha": 0.45 }
+  }
+}
