@@ -284,12 +284,22 @@ jobs:
           retention-days: 30
 
   # ============================================================
-  # Job 5: Dynamic Component doors — onClick ANIMATE formulas
-  # Phase A: pure-Ruby DC attribute tests (no SDK)
-  # Phase B: Pivot + Sliding DC SKP generation (Windows, SDK)
+  # Job 5: DC-ready door SKP generation via C SDK
+  #
+  # What this CI job does:
+  #   Phase A — pure-Ruby unit tests: verify JSON parsing, DC formula
+  #             generators (ANIMATE strings, _onclick_formula keys, etc.)
+  #   Phase B — C SDK via FFI: build static geometry + write DC attribute
+  #             dictionaries into the SKP file via SUEntityGetAttributeDictionary
+  #
+  # What this CI job does NOT do:
+  #   The ANIMATE engine, $dc_observers, and "Interact" tool only run
+  #   inside SketchUp. To see the door animate open/close, open the
+  #   generated SKP in SketchUp and use the Interact tool, OR run
+  #   sketchup_console_dc_door.rb from SketchUp's Ruby Console.
   # ============================================================
   north-star-dc-door:
-    name: North Star DC Door (Dynamic Components)
+    name: North Star DC-ready SKP (C SDK writes DC attrs)
     runs-on: windows-latest
 
     steps:
@@ -303,11 +313,13 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: false
 
-      - name: Unit tests — DC ANIMATE formula generation
+      # Phase A: pure-Ruby — no SDK or SketchUp needed
+      # Tests JSON formula generators, key names, ANIMATE strings
+      - name: "Phase A: Unit tests — DC formula generators (pure Ruby, no SDK)"
         working-directory: sdk-ruby/examples/north_star_door_v2
         run: ruby test_dc_attributes.rb --verbose
 
-      # ── Copy SDK DLLs (Phase B) ───────────────────────────────────────────
+      # ── Copy SDK DLLs (Phase B: C SDK geometry + DC attr writing) ─────────
       - name: Copy SDK DLLs to sdk-ruby/bin/
         run: |
           New-Item -ItemType Directory -Force -Path sdk-ruby\bin | Out-Null
@@ -336,8 +348,11 @@ jobs:
         working-directory: sdk-ruby
         run: gem install ffi --no-document
 
-      # ── Phase B: generate Pivot DC SKP ────────────────────────────────────
-      - name: Generate pivot_door_instance_DC.skp (onClick RotZ)
+      # ── Phase B: C SDK writes geometry + DC attribute dicts ───────────────
+      # NOTE: ANIMATE/DC engine only activates inside SketchUp.
+      # Open the generated SKP with the Interact tool to see animation,
+      # or run sketchup_console_dc_door.rb from SketchUp's Ruby Console.
+      - name: "Phase B: Generate pivot_door_instance_DC.skp (geometry + DC attrs)"
         working-directory: sdk-ruby/examples/north_star_door_v2
         run: ruby generate_dc_door.rb pivot_door_instance.json
 
@@ -345,10 +360,9 @@ jobs:
         working-directory: sdk-ruby/examples/north_star_door_v2
         run: |
           dir pivot_door_instance_DC.skp
-          Write-Host "Pivot DC door generated successfully"
+          Write-Host "Pivot DC-ready SKP written (open in SketchUp to animate)"
 
-      # ── Phase B: generate Sync-Sliding DC SKP ────────────────────────────
-      - name: Generate sliding_door_instance_DC.skp (onClick X)
+      - name: "Phase B: Generate sliding_door_instance_DC.skp (geometry + DC attrs)"
         working-directory: sdk-ruby/examples/north_star_door_v2
         run: ruby generate_dc_door.rb sliding_door_instance.json
 
