@@ -37,6 +37,13 @@ module Sketchup
       Face.new(face_h)
     end
 
+    # Place a ComponentInstance into this entities collection.
+    def add_instance(instance)
+      r = SUAPI.SUEntitiesAddInstance(@handle, instance.handle, FFI::Pointer::NULL)
+      SUAPI.check! r, 'SUEntitiesAddInstance'
+      instance
+    end
+
     private
 
     def normalize_pts(args)

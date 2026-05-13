@@ -282,3 +282,89 @@ jobs:
           name: north-star-folding-4panel-skp
           path: sdk-ruby/examples/north_star_door_v2/NorthStarFolding4Panel.skp
           retention-days: 30
+
+  # ============================================================
+  # Job 5: Dynamic Component doors — onClick ANIMATE formulas
+  # Phase A: pure-Ruby DC attribute tests (no SDK)
+  # Phase B: Pivot + Sliding DC SKP generation (Windows, SDK)
+  # ============================================================
+  north-star-dc-door:
+    name: North Star DC Door (Dynamic Components)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Phase A: pure-Ruby DC attribute unit tests ────────────────────────
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: Unit tests — DC ANIMATE formula generation
+        working-directory: sdk-ruby/examples/north_star_door_v2
+        run: ruby test_dc_attributes.rb --verbose
+
+      # ── Copy SDK DLLs (Phase B) ───────────────────────────────────────────
+      - name: Copy SDK DLLs to sdk-ruby/bin/
+        run: |
+          New-Item -ItemType Directory -Force -Path sdk-ruby\bin | Out-Null
+          Copy-Item binaries\sketchup\x64\*.dll sdk-ruby\bin\
+          Write-Host "=== sdk-ruby\bin\ ==="
+          dir sdk-ruby\bin\
+
+      - name: Verify SDK DLL loadability
+        run: |
+          $cs = 'using System; using System.Runtime.InteropServices; public class NL { [DllImport("kernel32",SetLastError=true)] public static extern IntPtr LoadLibraryEx(string f, IntPtr h, uint d); }'
+          Add-Type -TypeDefinition $cs
+          $binDir = (Resolve-Path "sdk-ruby\bin").Path
+          foreach ($dll in @("SketchUpCommonPreferences.dll","SketchUpAPI.dll")) {
+            $full = Join-Path $binDir $dll
+            if (-not (Test-Path $full)) { throw "MISSING: $dll" }
+            $h = [NL]::LoadLibraryEx($full, [IntPtr]::Zero, 8)
+            if ($h -eq [IntPtr]::Zero) {
+              $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+              throw "LoadLibraryEx FAILED: $dll  Win32Error=$err"
+            }
+            Write-Host "LOADABLE: $dll"
+          }
+          Write-Host "All DLLs OK"
+
+      - name: Install ffi gem
+        working-directory: sdk-ruby
+        run: gem install ffi --no-document
+
+      # ── Phase B: generate Pivot DC SKP ────────────────────────────────────
+      - name: Generate pivot_door_instance_DC.skp (onClick RotZ)
+        working-directory: sdk-ruby/examples/north_star_door_v2
+        run: ruby generate_dc_door.rb pivot_door_instance.json
+
+      - name: Show pivot DC file info
+        working-directory: sdk-ruby/examples/north_star_door_v2
+        run: |
+          dir pivot_door_instance_DC.skp
+          Write-Host "Pivot DC door generated successfully"
+
+      # ── Phase B: generate Sync-Sliding DC SKP ────────────────────────────
+      - name: Generate sliding_door_instance_DC.skp (onClick X)
+        working-directory: sdk-ruby/examples/north_star_door_v2
+        run: ruby generate_dc_door.rb sliding_door_instance.json
+
+      - name: Show sliding DC file info
+        working-directory: sdk-ruby/examples/north_star_door_v2
+        run: |
+          dir sliding_door_instance_DC.skp
+          Write-Host "Sliding DC door generated successfully"
+
+      # ── Artifacts ─────────────────────────────────────────────────────────
+      - name: Upload DC door SKP files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: north-star-dc-door-skp
+          path: |
+            sdk-ruby/examples/north_star_door_v2/pivot_door_instance_DC.skp
+            sdk-ruby/examples/north_star_door_v2/sliding_door_instance_DC.skp
+          retention-days: 30

@@ -79,6 +79,40 @@ module SUAPI
   # ── Entities ───────────────────────────────────────────────────────────
   # SUEntitiesAddFaces(SUEntitiesRef, size_t len, const SUFaceRef faces[])
   attach_function :SUEntitiesAddFaces, [:uint64, :size_t, :pointer], :int
+  # SUEntitiesAddInstance(SUEntitiesRef, SUComponentInstanceRef, SUStringRef* name_out)
+  # Pass NULL for name_out to auto-assign.
+  attach_function :SUEntitiesAddInstance, [:uint64, :uint64, :pointer], :int
+
+  # ── Component Definition ───────────────────────────────────────────────
+  attach_function :SUComponentDefinitionCreate,         [:pointer],          :int
+  attach_function :SUComponentDefinitionSetName,        [:uint64, :string],  :int
+  attach_function :SUComponentDefinitionGetEntities,    [:uint64, :pointer], :int
+  attach_function :SUComponentDefinitionCreateInstance, [:uint64, :pointer], :int
+  attach_function :SUComponentDefinitionToEntity,       [:uint64],           :uint64
+
+  # SUModelAddComponentDefinitions(SUModelRef, size_t, const SUComponentDefinitionRef[])
+  attach_function :SUModelAddComponentDefinitions, [:uint64, :size_t, :pointer], :int
+
+  # ── Component Instance ─────────────────────────────────────────────────
+  # SUComponentInstanceSetTransform(SUComponentInstanceRef, const struct SUTransformation*)
+  # SUTransformation = struct { double values[16]; } (column-major 4x4)
+  attach_function :SUComponentInstanceSetTransform, [:uint64, :pointer], :int
+  attach_function :SUComponentInstanceToEntity,     [:uint64],           :uint64
+
+  # ── Entity ─────────────────────────────────────────────────────────────
+  # SUEntityGetAttributeDictionary(SUEntityRef, const char* name, SUAttributeDictionaryRef* out)
+  attach_function :SUEntityGetAttributeDictionary, [:uint64, :string, :pointer], :int
+
+  # ── Attribute Dictionary ───────────────────────────────────────────────
+  # SUAttributeDictionarySetValue(SUAttributeDictionaryRef, const char* key, SUTypedValueRef value_in)
+  attach_function :SUAttributeDictionarySetValue, [:uint64, :string, :uint64], :int
+
+  # ── Typed Value ────────────────────────────────────────────────────────
+  attach_function :SUTypedValueCreate,    [:pointer],         :int
+  attach_function :SUTypedValueRelease,   [:pointer],         :int
+  attach_function :SUTypedValueSetString, [:uint64, :string], :int
+  attach_function :SUTypedValueSetDouble, [:uint64, :double], :int
+  attach_function :SUTypedValueSetInt32,  [:uint64, :int],    :int
 
   # ── Helpers ────────────────────────────────────────────────────────────
 

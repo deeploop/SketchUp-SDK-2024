@@ -23,6 +23,8 @@ require_relative 'sketchup_sdk/layer'
 require_relative 'sketchup_sdk/material'
 require_relative 'sketchup_sdk/face'
 require_relative 'sketchup_sdk/entities'
+require_relative 'sketchup_sdk/component_definition'
+require_relative 'sketchup_sdk/component_instance'
 require_relative 'sketchup_sdk/model'
 
 # Initialise the underlying C SDK on load; terminate cleanly on exit.

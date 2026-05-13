@@ -17,9 +17,10 @@ module Sketchup
       inst
     end
 
-    def entities;  @entities_obj;  end
-    def layers;    @layers_col;    end
-    def materials; @materials_col; end
+    def entities;              @entities_obj;   end
+    def layers;                @layers_col;     end
+    def materials;             @materials_col;  end
+    def component_definitions; @comp_defs;      end
 
     def save(path)
       SUAPI.SUModelSaveToFile(@handle, path.to_s) == SUAPI::SU_ERROR_NONE
@@ -58,6 +59,7 @@ module Sketchup
       @entities_obj  = Entities.new(SUAPI.rh(ents_out))
       @layers_col    = Layers.new(@handle)
       @materials_col = Materials.new(@handle)
+      @comp_defs     = ComponentDefinitions.new(@handle)
     end
 
     def init_from_file(path)
