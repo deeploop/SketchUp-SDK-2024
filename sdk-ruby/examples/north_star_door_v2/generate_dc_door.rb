@@ -172,7 +172,9 @@ if __FILE__ == $0
     total_faces += add_box(entities, b[:matrix], b[:width], b[:height], b[:thickness], layer, mat)
   end
 
-  # Build one component per panel, place as instance, write DC attributes
+  # Build one ComponentDefinition per panel, write DC template attrs on the
+  # definition entity (SketchUp reads them as the DC behavior template), then
+  # place one instance into the model.
   panel_indices = by_panel.keys.sort
 
   panel_indices.each do |pi|
@@ -182,29 +184,40 @@ if __FILE__ == $0
     defn, nf = build_panel_component(model, pboards, layer_cache, mat_cache, get_lm)
     total_faces += nf
 
+    # ── Write DC template attributes on the definition entity ──────────────
+    # These are the canonical DC keys SketchUp's engine reads from the SKP.
+    def_attrs = case system_type
+                when 'Pivot'
+                  NorthStar::DynamicComponent.pivot_def_attrs(rotation_angle: rot_angle)
+                when 'Sync_Sliding'
+                  dir = pi_human.even? ? -1 : 1
+                  NorthStar::DynamicComponent.sliding_def_attrs(panel_w,
+                    direction: dir, overlap: overlap)
+                when 'Folding'
+                  NorthStar::DynamicComponent.folding_def_attrs(pi_human, panel_w)
+                else
+                  { 'status' => '0', '_onclick_formula' => 'ANIMATE("status", 0, 90)' }
+                end
+
+    NorthStar::DynamicComponent.apply_to_definition(defn, def_attrs)
+    onclick = def_attrs['_onclick_formula'] || ''
+
+    # ── Create and place the instance ──────────────────────────────────────
     inst = defn.create_instance
-    # Place at origin — geometry already carries absolute transforms from JSON
     inst.transformation = NorthStar::DynamicComponent.translation_matrix(0, 0, 0)
     entities.add_instance(inst)
     instance_count += 1
 
-    # Write DC attributes based on door type
-    attrs = case system_type
-            when 'Pivot'
-              NorthStar::DynamicComponent.pivot_attrs(panel_w,
-                axis_fraction: axis_loc, rotation_angle: rot_angle)
-            when 'Sync_Sliding'
-              NorthStar::DynamicComponent.sliding_attrs(panel_w,
-                direction: (pi_human.even? ? -1 : 1), overlap: overlap)
-            when 'Folding'
-              NorthStar::DynamicComponent.folding_attrs(pi_human, panel_w)
-            else
-              { '_name' => "Panel #{pi}", 'status' => 'Closed|Open' }
+    # Instance-level DC override: display name + panel width
+    label = case system_type
+            when 'Pivot'        then "旋轉門扇 #{pi}"
+            when 'Sync_Sliding' then "連動門扇 #{pi}"
+            when 'Folding'      then "折疊門扇 #{pi}"
+            else                     "Panel #{pi}"
             end
+    NorthStar::DynamicComponent.apply_to_instance(inst, label, panel_w)
 
-    NorthStar::DynamicComponent.apply(inst, attrs)
-
-    puts "  [Panel #{pi}] #{attrs['onclick']}  (#{nf} faces)"
+    puts "  [Panel #{pi}] #{onclick}  (#{nf} faces)"
   end
 
   puts

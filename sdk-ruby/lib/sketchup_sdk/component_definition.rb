@@ -21,6 +21,32 @@ module Sketchup
     def entity_handle
       SUAPI.SUComponentDefinitionToEntity(@handle)
     end
+
+    # Write a DC (or any) attribute on the definition entity.
+    # This is the canonical place for DC template attributes in SketchUp.
+    def set_attribute(dict_name, key, value)
+      dict_out = SUAPI.out_h
+      SUAPI.check! SUAPI.SUEntityGetAttributeDictionary(entity_handle, dict_name.to_s, dict_out),
+                   'SUEntityGetAttributeDictionary (definition)'
+      dict_h = SUAPI.rh(dict_out)
+
+      tv_out = SUAPI.out_h
+      SUAPI.check! SUAPI.SUTypedValueCreate(tv_out), 'SUTypedValueCreate'
+      tv_h = SUAPI.rh(tv_out)
+
+      case value
+      when Integer then SUAPI.SUTypedValueSetInt32(tv_h, value)
+      when Float   then SUAPI.SUTypedValueSetDouble(tv_h, value)
+      else              SUAPI.SUTypedValueSetString(tv_h, value.to_s)
+      end
+
+      SUAPI.check! SUAPI.SUAttributeDictionarySetValue(dict_h, key.to_s, tv_h),
+                   'SUAttributeDictionarySetValue (definition)'
+    ensure
+      if defined?(tv_h) && tv_h && tv_h != 0
+        SUAPI.SUTypedValueRelease(SUAPI.h1(tv_h))
+      end
+    end
   end
 
   class ComponentDefinitions
