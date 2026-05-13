@@ -382,3 +382,113 @@ jobs:
             sdk-ruby/examples/north_star_door_v2/pivot_door_instance_DC.skp
             sdk-ruby/examples/north_star_door_v2/sliding_door_instance_DC.skp
           retention-days: 30
+
+  # ============================================================
+  # Job 6: North Star v3 — Q-Series / LS-Folding / F1-Cabinet
+  # Phase A: pure-Ruby tests (formulas, validation, DC attrs)
+  # Phase B: C SDK generates grouped SKP for all 3 product lines
+  #
+  # Group hierarchy per panel:
+  #   Group "NorthStar_{system}_P{n}" (DC attrs on entity)
+  #     ├── Frame geometry  (LS profile: fw=16/22.5/33mm)
+  #     ├── Glass geometry  (5mm, with transparency)
+  #     └── Milling marker  (F1 only: 3.5mm×10mm hinge slot, red)
+  #
+  # Deduction formulas:
+  #   Suspended/Folding: H_panel = H - 47(top) - 17(bottom)
+  #   Pivot/F1:          H_panel = H - 16(top) - 15(bottom)
+  #   Folding:           W_panel = (L - 14) / N
+  #   Pivot:             W_panel = L - 14
+  # ============================================================
+  north-star-v3:
+    name: North Star v3 (Q-Series / LS-Folding / F1-Cabinet)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Phase A: pure-Ruby formula tests ─────────────────────────────────
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: "Phase A: Unit tests — v3 formulas, validation, DC attrs (pure Ruby)"
+        working-directory: sdk-ruby/examples/north_star_door_v3
+        run: ruby test_door_logic_v3.rb --verbose
+
+      # ── Copy SDK DLLs ─────────────────────────────────────────────────────
+      - name: Copy SDK DLLs to sdk-ruby/bin/
+        run: |
+          New-Item -ItemType Directory -Force -Path sdk-ruby\bin | Out-Null
+          Copy-Item binaries\sketchup\x64\*.dll sdk-ruby\bin\
+          Write-Host "=== sdk-ruby\bin\ ==="
+          dir sdk-ruby\bin\
+
+      - name: Verify SDK DLL loadability
+        run: |
+          $cs = 'using System; using System.Runtime.InteropServices; public class NL { [DllImport("kernel32",SetLastError=true)] public static extern IntPtr LoadLibraryEx(string f, IntPtr h, uint d); }'
+          Add-Type -TypeDefinition $cs
+          $binDir = (Resolve-Path "sdk-ruby\bin").Path
+          foreach ($dll in @("SketchUpCommonPreferences.dll","SketchUpAPI.dll")) {
+            $full = Join-Path $binDir $dll
+            if (-not (Test-Path $full)) { throw "MISSING: $dll" }
+            $h = [NL]::LoadLibraryEx($full, [IntPtr]::Zero, 8)
+            if ($h -eq [IntPtr]::Zero) {
+              $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+              throw "LoadLibraryEx FAILED: $dll  Win32Error=$err"
+            }
+            Write-Host "LOADABLE: $dll"
+          }
+          Write-Host "All DLLs OK"
+
+      - name: Install ffi gem
+        working-directory: sdk-ruby
+        run: gem install ffi --no-document
+
+      # ── Phase B: Q-Series (3-panel sync-sliding, master/slave DC) ─────────
+      - name: "Phase B: Generate Q-Series SKP (Sync_Sliding, 3 panels, master/slave DC)"
+        working-directory: sdk-ruby/examples/north_star_door_v3
+        run: ruby generate_northstar.rb q_series_instance.json
+
+      - name: Show Q-Series file info
+        working-directory: sdk-ruby/examples/north_star_door_v3
+        run: |
+          dir q_series_instance.skp
+          Write-Host "Q-Series 3-panel sync-sliding generated"
+
+      # ── Phase B: LS-Folding (4-panel folding, (L-14)/N width) ────────────
+      - name: "Phase B: Generate LS-Folding SKP (Folding, 4 panels, (L-14)/N formula)"
+        working-directory: sdk-ruby/examples/north_star_door_v3
+        run: ruby generate_northstar.rb ls_folding_instance.json
+
+      - name: Show LS-Folding file info
+        working-directory: sdk-ruby/examples/north_star_door_v3
+        run: |
+          dir ls_folding_instance.skp
+          Write-Host "LS-Folding 4-panel generated"
+
+      # ── Phase B: F1-Cabinet (pivot, ≤450mm, milling marker) ───────────────
+      - name: "Phase B: Generate F1-Cabinet SKP (Pivot, 440x2000, F1 hinge milling)"
+        working-directory: sdk-ruby/examples/north_star_door_v3
+        run: ruby generate_northstar.rb f1_cabinet_instance.json
+
+      - name: Show F1-Cabinet file info
+        working-directory: sdk-ruby/examples/north_star_door_v3
+        run: |
+          dir f1_cabinet_instance.skp
+          Write-Host "F1-Cabinet pivot door with hinge milling generated"
+
+      # ── Artifacts ─────────────────────────────────────────────────────────
+      - name: Upload v3 SKP files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: north-star-v3-skp
+          path: |
+            sdk-ruby/examples/north_star_door_v3/q_series_instance.skp
+            sdk-ruby/examples/north_star_door_v3/ls_folding_instance.skp
+            sdk-ruby/examples/north_star_door_v3/f1_cabinet_instance.skp
+          retention-days: 30

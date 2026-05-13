@@ -82,6 +82,15 @@ module SUAPI
   # SUEntitiesAddInstance(SUEntitiesRef, SUComponentInstanceRef, SUStringRef* name_out)
   # Pass NULL for name_out to auto-assign.
   attach_function :SUEntitiesAddInstance, [:uint64, :uint64, :pointer], :int
+  attach_function :SUEntitiesAddGroup,    [:uint64, :uint64],           :int
+
+  # ── Group ──────────────────────────────────────────────────────────────
+  # SUGroupToEntity / SUGroupToDrawingElement return by value (uint64 ABI).
+  attach_function :SUGroupCreate,           [:pointer],          :int
+  attach_function :SUGroupSetName,          [:uint64, :string],  :int
+  attach_function :SUGroupGetEntities,      [:uint64, :pointer], :int
+  attach_function :SUGroupToEntity,         [:uint64],           :uint64
+  attach_function :SUGroupToDrawingElement, [:uint64],           :uint64
 
   # ── Component Definition ───────────────────────────────────────────────
   attach_function :SUComponentDefinitionCreate,         [:pointer],          :int

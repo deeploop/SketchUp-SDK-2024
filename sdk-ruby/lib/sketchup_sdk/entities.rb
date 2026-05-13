@@ -37,6 +37,15 @@ module Sketchup
       Face.new(face_h)
     end
 
+    # Create a new Group in this entities collection and return the wrapper.
+    def add_group
+      out = SUAPI.out_h
+      SUAPI.check! SUAPI.SUGroupCreate(out), 'SUGroupCreate'
+      g_h = SUAPI.rh(out)
+      SUAPI.check! SUAPI.SUEntitiesAddGroup(@handle, g_h), 'SUEntitiesAddGroup'
+      Group.new(g_h)
+    end
+
     # Place a ComponentInstance into this entities collection.
     def add_instance(instance)
       r = SUAPI.SUEntitiesAddInstance(@handle, instance.handle, FFI::Pointer::NULL)
