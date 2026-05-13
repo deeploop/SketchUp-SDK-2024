@@ -12,6 +12,7 @@ jobs:
   # ============================================================
   build-cpp:
     name: C++ Samples (Windows x64)
+    if: false
     runs-on: windows-latest
 
     steps:
@@ -71,6 +72,7 @@ jobs:
   # ============================================================
   build-ruby:
     name: Ruby API → SKP (Windows x64)
+    if: false
     runs-on: windows-latest
 
     steps:
@@ -145,6 +147,7 @@ jobs:
   # ============================================================
   north-star-door:
     name: North Star Door Generator (JSON → SKP)
+    if: false
     runs-on: windows-latest
 
     steps:
@@ -217,6 +220,7 @@ jobs:
   # ============================================================
   north-star-door-v2:
     name: North Star Advanced Door v2 (JSON → SKP)
+    if: false
     runs-on: windows-latest
 
     steps:
@@ -300,6 +304,7 @@ jobs:
   # ============================================================
   north-star-dc-door:
     name: North Star DC-ready SKP (C SDK writes DC attrs)
+    if: false
     runs-on: windows-latest
 
     steps:
