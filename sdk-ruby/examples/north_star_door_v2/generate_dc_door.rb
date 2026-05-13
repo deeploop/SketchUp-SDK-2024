@@ -9,7 +9,7 @@
 #   Sync_Sliding — ANIMATE("X", 0, -travel) per panel
 #   Folding      — ANIMATE("RotZ", 0, ±90) alternating per panel
 
-$LOAD_PATH.unshift File.join(__dir__, '../../../lib')
+$LOAD_PATH.unshift File.join(__dir__, '../../lib')
 require 'sketchup_sdk'
 require 'json'
 require_relative 'door_logic'
