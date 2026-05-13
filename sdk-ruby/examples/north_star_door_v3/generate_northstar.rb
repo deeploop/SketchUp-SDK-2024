@@ -149,20 +149,20 @@ if __FILE__ == $0
     by_panel[pi] << b
   end
 
-  # Root (panel 0) boards — add flat to model entities
+  # Root (panel 0) boards — added flat to model root entities.
+  # Root node is typically a zero-dimension placeholder; skip it.
+  # Any real geometry here is counted in total_faces for accurate verification.
   (by_panel.delete(0) || []).each do |b|
     next if b[:width] == 0.0 && b[:height] == 0.0
     type_name  = PART_LAYERS_V3.fetch(classify_part_v3(b[:name]), 'Other')
     layer, mat = get_lm.call(type_name)
-    add_box_to(entities, b[:matrix], b[:width], b[:height], b[:thickness], layer, mat)
+    total_faces += add_box_to(entities, b[:matrix], b[:width], b[:height], b[:thickness], layer, mat)
   end
 
   puts 'Building geometry + groups + DC attributes...'
   total_faces   = 0
   group_count   = 0
   master_name   = "NorthStar_Q_P1"  # used by sync-sliding slave reference
-
-  by_panel.keys.sort.each do |pi|
     pboards  = by_panel[pi]
     pi_human = pi - 1  # 0-based
 

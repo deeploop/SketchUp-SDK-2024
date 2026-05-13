@@ -14,16 +14,19 @@
 require 'json'
 
 # ── LUT compact-format offsets (same as v2) ───────────────────────────────────
-ANCHOR_V3    = 'Board'
-CMP_ID_V3    = 1
+ANCHOR_V3     = 'Board'
+CMP_ID_V3     = 1
+# offset 2: level, offset 3: sibling
+CMP_DEBUG_V3  = 4   # debug label "P1_LS_Left" — used to detect panel group index
 CMP_MATRIX_V3 = 5
-CMP_WIDTH_V3 = 6
+CMP_WIDTH_V3  = 6
 CMP_HEIGHT_V3 = 7
-CMP_THICK_V3 = 8
-CMP_NAME_V3  = 10
-CMP_CAT_V3   = 11
-CMP_HW_V3    = 12
-CMP_LEN_V3   = 13
+CMP_THICK_V3  = 8
+# offset 9: "Polyline" type tag
+CMP_NAME_V3   = 10  # production part name "LS立框" — used for classification
+CMP_CAT_V3    = 11
+CMP_HW_V3     = 12
+CMP_LEN_V3    = 13
 
 # ── Height deductions — split top/bottom (mm) ─────────────────────────────────
 DEDUCTIONS_V3 = {
@@ -269,14 +272,15 @@ def parse_boards_v3(arr)
       mat = arr[i + CMP_MATRIX_V3]
       if mat.is_a?(Array) && mat.size == 16
         boards << {
-          id:        arr[i + CMP_ID_V3],
-          matrix:    mat.map(&:to_f),
-          width:     arr[i + CMP_WIDTH_V3].to_f,
-          height:    arr[i + CMP_HEIGHT_V3].to_f,
-          thickness: arr[i + CMP_THICK_V3].to_f,
-          name:      arr[i + CMP_NAME_V3].to_s,
-          category:  arr[i + CMP_CAT_V3].to_s,
-          hardware:  arr[i + CMP_HW_V3].to_s
+          id:         arr[i + CMP_ID_V3],
+          debug_name: arr[i + CMP_DEBUG_V3].to_s,   # "P1_LS_Left" — panel-group routing
+          matrix:     mat.map(&:to_f),
+          width:      arr[i + CMP_WIDTH_V3].to_f,
+          height:     arr[i + CMP_HEIGHT_V3].to_f,
+          thickness:  arr[i + CMP_THICK_V3].to_f,
+          name:       arr[i + CMP_NAME_V3].to_s,    # "LS立框" — part classification
+          category:   arr[i + CMP_CAT_V3].to_s,
+          hardware:   arr[i + CMP_HW_V3].to_s
         }
         i += CMP_LEN_V3
         next
@@ -314,9 +318,11 @@ def classify_part_v3(name)
   end
 end
 
-# Panel grouping helper — boards whose debug name starts with "P{N}_"
+# Panel grouping helper.
+# Reads the debug_name field (offset 4, e.g. "P1_LS_Left") NOT the part name
+# (offset 10, e.g. "LS立框") — they are different columns in the LUT.
 def panel_index_v3(board)
-  board[:name][/\AP(\d+)_/, 1]&.to_i
+  board[:debug_name][/\AP(\d+)_/, 1]&.to_i
 end
 
 # ── Matrix helpers ────────────────────────────────────────────────────────────

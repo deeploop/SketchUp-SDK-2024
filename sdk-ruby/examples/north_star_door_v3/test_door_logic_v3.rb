@@ -365,8 +365,37 @@ class TestBoardParserV3 < Minitest::Test
     assert_in_delta 34.0, @boards[0][:thickness], 0.001
   end
 
-  def test_name
+  def test_name_is_part_name
+    # offset 10 = production part name used for classification
     assert_equal 'LS立框', @boards[0][:name]
+  end
+
+  def test_debug_name_is_panel_label
+    # offset 4 = debug label "P1_LS_Left" used for panel-group routing
+    assert_equal 'P1_LS_Left', @boards[0][:debug_name]
+  end
+end
+
+class TestPanelIndexV3 < Minitest::Test
+  def make_board(debug_name)
+    { debug_name: debug_name, name: 'LS立框' }
+  end
+
+  def test_p1_returns_1
+    assert_equal 1, panel_index_v3(make_board('P1_LS_Left'))
+  end
+
+  def test_p3_returns_3
+    assert_equal 3, panel_index_v3(make_board('P3_Glass'))
+  end
+
+  def test_root_returns_nil
+    assert_nil panel_index_v3(make_board('Q_Series_Root'))
+  end
+
+  def test_ls_立框_returns_nil
+    # Part name alone (no P{N}_ prefix) → nil → routes to panel 0 / root
+    assert_nil panel_index_v3(make_board('LS立框'))
   end
 end
 
