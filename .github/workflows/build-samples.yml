@@ -65,7 +65,9 @@ jobs:
           retention-days: 30
 
   # ============================================================
-  # Job 2: Ruby API — build bridge DLL, then run Ruby script
+  # Job 2: Ruby API — call SketchUpAPI.dll directly via FFI
+  # No bridge DLL needed: Windows x64 ABI makes SUxxxRef (struct { void* })
+  # ABI-identical to uint64, so Ruby FFI can call the SDK directly.
   # ============================================================
   build-ruby:
     name: Ruby API → SKP (Windows x64)
@@ -75,28 +77,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
-      # ── Build SketchUpBridge.dll ───────────────────────────────────────────
-      # Compiles the thin C++ bridge that wraps opaque SDK handles into plain
-      # void* so Ruby FFI can call the SketchUp C API without struct-by-value issues.
-      - name: Build SketchUpBridge.dll
-        working-directory: sdk-ruby/ext/bridge
+      # ── Copy SDK DLLs into sdk-ruby/bin/ ──────────────────────────────────
+      # Ruby's ffi_bindings.rb loads them from this directory.
+      - name: Copy SDK DLLs to sdk-ruby/bin/
         run: |
-          msbuild SketchUpBridge.sln `
-            /p:Configuration=Release /p:Platform=x64 /m /nologo
+          New-Item -ItemType Directory -Force -Path sdk-ruby\bin | Out-Null
+          Copy-Item binaries\sketchup\x64\*.dll sdk-ruby\bin\
+          Write-Host "=== sdk-ruby\bin\ ==="
+          dir sdk-ruby\bin\
 
-      # Confirm all DLLs landed in sdk-ruby/bin/ and can actually be loaded.
-      # Uses LoadLibraryEx (single-line C# to avoid YAML/heredoc conflict).
+      # Verify the two SDK DLLs are present and loadable.
       - name: Verify sdk-ruby/bin/ DLL loadability
         run: |
           $cs = 'using System; using System.Runtime.InteropServices; public class NL { [DllImport("kernel32",SetLastError=true)] public static extern IntPtr LoadLibraryEx(string f, IntPtr h, uint d); }'
           Add-Type -TypeDefinition $cs
           $binDir = (Resolve-Path "sdk-ruby\bin").Path
-          Write-Host "=== sdk-ruby\bin ==="
-          dir $binDir
-          foreach ($dll in @("SketchUpCommonPreferences.dll","SketchUpAPI.dll","SketchUpBridge.dll")) {
+          foreach ($dll in @("SketchUpCommonPreferences.dll","SketchUpAPI.dll")) {
             $full = Join-Path $binDir $dll
             if (-not (Test-Path $full)) { throw "MISSING: $dll" }
             $h = [NL]::LoadLibraryEx($full, [IntPtr]::Zero, 8)
@@ -120,10 +116,9 @@ jobs:
         run: gem install ffi --no-document
 
       # ── Run example ───────────────────────────────────────────────────────
-      # ffi_bindings.rb uses Fiddle.dlopen to pre-load SketchUpCommonPreferences.dll
-      # and SketchUpAPI.dll by absolute path before FFI calls LoadLibrary on the
-      # bridge — this puts them in the process loaded-module list so Windows
-      # resolves the bridge's imports without needing PATH tricks.
+      # ffi_bindings.rb calls SetDllDirectoryA(BIN_DIR) via Fiddle so Windows
+      # resolves SketchUpAPI.dll's transitive imports, then Fiddle.dlopen
+      # pre-loads both SDK DLLs before FFI's ffi_lib call.
       - name: Generate RubyOfficeBuilding.skp
         working-directory: sdk-ruby/examples
         run: ruby generate_office.rb
@@ -142,11 +137,3 @@ jobs:
           name: ruby-generated-skp
           path: sdk-ruby/examples/RubyOfficeBuilding.skp
           retention-days: 30
-
-      - name: Upload bridge DLL (for debugging)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sketchup-bridge-dll
-          path: sdk-ruby/bin/SketchUpBridge.dll
-          retention-days: 7

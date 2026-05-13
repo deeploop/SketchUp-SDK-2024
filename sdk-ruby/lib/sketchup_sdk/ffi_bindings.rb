@@ -1,69 +1,103 @@
-# Low-level FFI bindings to SketchUpBridge.dll.
-# Do not use this file directly — use sketchup_sdk.rb instead.
-
 require 'ffi'
 
-module SketchUpBridge
+# Internal FFI module — calls SketchUpAPI.dll directly. No bridge DLL.
+#
+# On Windows x64 (MSVC ABI), a struct with a single pointer member (8 bytes)
+# is passed/returned in a single register, ABI-identical to uint64.
+# All SUxxxRef handles are { void* ptr }, so we use:
+#   :uint64   for by-value handle arguments
+#   :pointer  for output params (SUxxxRef*) — then read_uint64 to get handle
+module SUAPI
   extend FFI::Library
 
-  # __dir__ is sdk-ruby/lib/sketchup_sdk/
-  # ../../bin  →  sdk-ruby/bin/  (MSBuild output; also holds SketchUpAPI.dll)
+  # sdk-ruby/lib/sketchup_sdk/ -> ../../bin = sdk-ruby/bin/
   BIN_DIR = File.expand_path('../../bin', __dir__).freeze
 
+  SU_ERROR_NONE = 0
+
   if FFI::Platform.windows?
-    # Windows DLL search order for transitive dependencies does NOT automatically
-    # include the directory of the DLL being loaded — it uses the calling EXE
-    # dir, System32, Windows dir, current dir, and PATH.
-    #
-    # Solution: use Ruby's built-in Fiddle to load the SketchUp SDK DLLs by
-    # absolute path BEFORE FFI touches the bridge.  Once a DLL is in the
-    # process's loaded-module list Windows finds it by name immediately, so
-    # LoadLibrary('SketchUpBridge.dll') resolves its SketchUpAPI.dll import
-    # without needing any PATH / search-order tricks.
     require 'fiddle'
-    [
-      File.join(BIN_DIR, 'SketchUpCommonPreferences.dll'),
-      File.join(BIN_DIR, 'SketchUpAPI.dll'),
-    ].each do |dll|
-      warn "  [ffi_bindings] pre-loading #{dll}" if $VERBOSE
-      Fiddle.dlopen(dll)
+    # SetDllDirectoryA adds BIN_DIR to the process-wide DLL search path.
+    # This lets Windows find transitive dependencies of SketchUpAPI.dll
+    # without requiring them to be in PATH or System32.
+    kernel32 = Fiddle.dlopen('kernel32.dll')
+    set_dll_dir = Fiddle::Function.new(
+      kernel32['SetDllDirectoryA'],
+      [Fiddle::TYPE_VOIDP],
+      Fiddle::TYPE_INT
+    )
+    set_dll_dir.call(BIN_DIR)
+    # Also explicitly pre-load each DLL so they are in the loaded-module list.
+    %w[SketchUpCommonPreferences.dll SketchUpAPI.dll].each do |dll|
+      Fiddle.dlopen(File.join(BIN_DIR, dll))
     end
   end
 
-  ffi_lib File.join(BIN_DIR, 'SketchUpBridge.dll')
+  ffi_lib File.join(BIN_DIR, 'SketchUpAPI.dll')
 
-  # ── Lifecycle ──────────────────────────────────────────────────────────────
-  attach_function :su_initialize, [],        :void
-  attach_function :su_terminate,  [],        :void
+  # ── Lifecycle ──────────────────────────────────────────────────────────
+  attach_function :SUInitialize, [], :void
+  attach_function :SUTerminate,  [], :void
 
-  # ── Model ──────────────────────────────────────────────────────────────────
-  attach_function :model_create,          [],                  :pointer
-  attach_function :model_release,         [:pointer],          :void
-  attach_function :model_save,            [:pointer, :string], :int
-  attach_function :model_set_name,        [:pointer, :string], :void
-  attach_function :model_set_description, [:pointer, :string], :void
-  attach_function :model_get_entities,    [:pointer],          :pointer
-  attach_function :model_add_layer,       [:pointer, :string], :pointer
-  attach_function :model_add_material,
-                  [:pointer, :string, :uint8, :uint8, :uint8], :pointer
+  # ── Model ──────────────────────────────────────────────────────────────
+  attach_function :SUModelCreate,          [:pointer],                   :int
+  attach_function :SUModelRelease,         [:pointer],                   :int
+  attach_function :SUModelSaveToFile,      [:uint64, :string],           :int
+  attach_function :SUModelSetName,         [:uint64, :string],           :int
+  attach_function :SUModelSetDescription,  [:uint64, :string],           :int
+  attach_function :SUModelGetEntities,     [:uint64, :pointer],          :int
+  attach_function :SUModelAddLayers,       [:uint64, :size_t, :pointer], :int
+  attach_function :SUModelAddMaterials,    [:uint64, :size_t, :pointer], :int
+  attach_function :SUModelGetStatistics,   [:uint64, :pointer],          :int
+  attach_function :SUModelCreateFromFile,  [:pointer, :string],          :int
 
-  # ── Material ───────────────────────────────────────────────────────────────
-  attach_function :material_set_color,
-                  [:pointer, :uint8, :uint8, :uint8], :void
-  attach_function :material_set_opacity, [:pointer, :double], :void
+  # ── Layer ──────────────────────────────────────────────────────────────
+  attach_function :SULayerCreate,  [:pointer],         :int
+  attach_function :SULayerSetName, [:uint64, :string], :int
 
-  # ── Entities / Face ────────────────────────────────────────────────────────
-  # pts_buf: FFI::MemoryPointer of doubles [x0,y0,z0, x1,y1,z1 ...]
-  attach_function :entities_add_face,
-                  [:pointer, :pointer, :int], :pointer
+  # ── Material ───────────────────────────────────────────────────────────
+  attach_function :SUMaterialCreate,        [:pointer],          :int
+  attach_function :SUMaterialSetName,       [:uint64, :string],  :int
+  attach_function :SUMaterialSetColor,      [:uint64, :pointer], :int
+  attach_function :SUMaterialSetOpacity,    [:uint64, :double],  :int
+  attach_function :SUMaterialSetUseOpacity, [:uint64, :int],     :int
 
-  attach_function :face_set_front_material, [:pointer, :pointer], :void
-  attach_function :face_set_back_material,  [:pointer, :pointer], :void
-  attach_function :face_set_layer,          [:pointer, :pointer], :void
+  # ── Loop input ─────────────────────────────────────────────────────────
+  attach_function :SULoopInputCreate,         [:pointer],         :int
+  attach_function :SULoopInputAddVertexIndex, [:uint64, :size_t], :int
 
-  # ── Verification / read-back ──────────────────────────────────────────────
-  # Opens an existing .skp file; returns model handle (or null pointer).
-  attach_function :model_open,      [:string],           :pointer
-  # Fills a caller-allocated int[8] with entity counts (edges, faces, …).
-  attach_function :model_get_stats, [:pointer, :pointer], :void
+  # ── Face ───────────────────────────────────────────────────────────────
+  # SUFaceCreate(SUFaceRef* out, const SUPoint3D* pts, SULoopInputRef* loop)
+  attach_function :SUFaceCreate,           [:pointer, :pointer, :pointer], :int
+  attach_function :SUFaceSetFrontMaterial, [:uint64, :uint64],             :int
+  attach_function :SUFaceSetBackMaterial,  [:uint64, :uint64],             :int
+  attach_function :SUFaceToDrawingElement, [:uint64],                      :uint64
+
+  # ── Drawing element ────────────────────────────────────────────────────
+  attach_function :SUDrawingElementSetLayer, [:uint64, :uint64], :int
+
+  # ── Entities ───────────────────────────────────────────────────────────
+  # SUEntitiesAddFaces(SUEntitiesRef, size_t len, const SUFaceRef faces[])
+  attach_function :SUEntitiesAddFaces, [:uint64, :size_t, :pointer], :int
+
+  # ── Helpers ────────────────────────────────────────────────────────────
+
+  def self.out_h
+    FFI::MemoryPointer.new(:uint64, 1)
+  end
+
+  def self.rh(ptr)
+    ptr.read_uint64
+  end
+
+  def self.h1(handle)
+    p = FFI::MemoryPointer.new(:uint64, 1)
+    p.write_uint64(handle)
+    p
+  end
+
+  def self.check!(r, label = '')
+    return if r == SU_ERROR_NONE
+    raise "SketchUp SDK error #{r}#{label.empty? ? '' : " [#{label}]"}"
+  end
 end

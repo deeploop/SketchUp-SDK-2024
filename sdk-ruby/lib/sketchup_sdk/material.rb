@@ -1,68 +1,69 @@
 module Sketchup
-  # Mirrors Sketchup::Material from the official Ruby API.
-  # Color is set before the material is committed to the SDK model, so the
-  # typical pattern:
-  #   mat = model.materials.add("Stucco")
-  #   mat.color = Sketchup::Color.new(235, 228, 212)
-  # works correctly with lazy initialisation.
   class Material
     attr_reader :name
 
-    def initialize(model_ptr, name)
-      @model_ptr  = model_ptr
-      @name       = name.to_s
-      @color      = Color.new(200, 200, 200)
-      @alpha      = 1.0
-      @native_ptr = nil
+    def initialize(model_handle, name)
+      @model_handle = model_handle
+      @name         = name.to_s
+      @color        = Color.new(200, 200, 200)
+      @alpha        = 1.0
+      @handle       = nil
     end
 
-    # Setting color before first use is the recommended workflow.
-    # Setting it after first use updates the already-committed material.
+    # Lazy: committed to the SDK model on first use.
+    def handle
+      @handle ||= commit!
+    end
+
     def color=(c)
       @color = c
-      if @native_ptr
-        SketchUpBridge.material_set_color(@native_ptr,
-                                          c.red.to_i, c.green.to_i, c.blue.to_i)
-      end
+      SUAPI.SUMaterialSetColor(@handle, color_buf) if @handle
     end
 
     def color; @color; end
 
     def alpha=(a)
       @alpha = a.to_f.clamp(0.0, 1.0)
-      SketchUpBridge.material_set_opacity(@native_ptr, @alpha) if @native_ptr
+      if @handle
+        SUAPI.SUMaterialSetOpacity(@handle, @alpha)
+        SUAPI.SUMaterialSetUseOpacity(@handle, 1)
+      end
     end
 
     def alpha; @alpha; end
 
-    # Returns the raw SDK pointer, committing the material on first call.
-    def native_ptr
-      @native_ptr ||= begin
-        ptr = SketchUpBridge.model_add_material(
-          @model_ptr, @name,
-          @color.red.to_i, @color.green.to_i, @color.blue.to_i
-        )
-        raise "Failed to create material '#{@name}'" if ptr.nil? || ptr.null?
-        ptr
-      end
+    def to_s;    "Material(#{@name})"; end
+    def inspect; "#<Sketchup::Material name=#{@name.inspect} color=#{@color}>"; end
+
+    private
+
+    def commit!
+      out = SUAPI.out_h
+      SUAPI.check! SUAPI.SUMaterialCreate(out), 'SUMaterialCreate'
+      h = SUAPI.rh(out)
+      SUAPI.SUMaterialSetName(h, @name)
+      SUAPI.SUMaterialSetColor(h, color_buf)
+      SUAPI.SUModelAddMaterials(@model_handle, 1, SUAPI.h1(h))
+      h
     end
 
-    def to_s;    "Material(#{@name}, #{@color})"; end
-    def inspect; "#<Sketchup::Material name=#{@name.inspect} color=#{@color}>"; end
+    def color_buf
+      buf = FFI::MemoryPointer.new(:uint8, 4)
+      buf.put_bytes(0, [@color.red, @color.green, @color.blue, @color.alpha].pack('C4'))
+      buf
+    end
   end
 
-  # Collection returned by Model#materials.
   class Materials
     include Enumerable
 
-    def initialize(model_ptr)
-      @model_ptr = model_ptr
+    def initialize(model_handle)
+      @model_handle = model_handle
       @materials = {}
     end
 
-    # Creates and returns a new Material. Mirrors model.materials.add(name).
     def add(name)
-      mat = Material.new(@model_ptr, name.to_s)
+      mat = Material.new(@model_handle, name.to_s)
       @materials[name.to_s] = mat
       mat
     end

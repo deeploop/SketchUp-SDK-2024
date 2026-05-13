@@ -1,32 +1,31 @@
 module Sketchup
-  # Mirrors Sketchup::Layer from the official Ruby API.
-  # Instances are returned by Sketchup::Layers#add — do not instantiate directly.
   class Layer
-    attr_reader :native_ptr, :name
+    attr_reader :handle, :name
 
-    def initialize(ptr, name)
-      @native_ptr = ptr
-      @name       = name.to_s
+    def initialize(handle, name)
+      @handle = handle
+      @name   = name.to_s
     end
 
     def to_s;    "Layer(#{@name})"; end
     def inspect; "#<Sketchup::Layer name=#{@name.inspect}>"; end
   end
 
-  # Collection returned by Model#layers.
   class Layers
     include Enumerable
 
-    def initialize(model_ptr)
-      @model_ptr = model_ptr
-      @layers    = {}
+    def initialize(model_handle)
+      @model_handle = model_handle
+      @layers = {}
     end
 
-    # Adds and returns a new Layer (Tag). Mirrors Model.layers.add(name).
     def add(name)
-      ptr = SketchUpBridge.model_add_layer(@model_ptr, name.to_s)
-      raise "Failed to create layer '#{name}'" if ptr.nil? || ptr.null?
-      layer = Layer.new(ptr, name)
+      out = SUAPI.out_h
+      SUAPI.check! SUAPI.SULayerCreate(out), 'SULayerCreate'
+      h = SUAPI.rh(out)
+      SUAPI.SULayerSetName(h, name.to_s)
+      SUAPI.SUModelAddLayers(@model_handle, 1, SUAPI.h1(h))
+      layer = Layer.new(h, name)
       @layers[name.to_s] = layer
       layer
     end

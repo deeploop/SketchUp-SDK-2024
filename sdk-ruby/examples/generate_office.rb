@@ -149,7 +149,7 @@ verify.close
 
 EXPECTED = {
   faces:     8,   # 1 floor + 1 ceiling + 4 ext walls + 2 int walls
-  layers:    4,   # Floor | Exterior Walls | Interior Walls | Ceiling
+  layers:    5,   # Layer0 (default) + Floor | Exterior Walls | Interior Walls | Ceiling
   materials: 4    # Concrete | Stucco | Drywall | CeilingPaint
 }.freeze
 

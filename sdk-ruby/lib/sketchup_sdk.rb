@@ -26,8 +26,8 @@ require_relative 'sketchup_sdk/entities'
 require_relative 'sketchup_sdk/model'
 
 # Initialise the underlying C SDK on load; terminate cleanly on exit.
-SketchUpBridge.su_initialize
-at_exit { SketchUpBridge.su_terminate }
+SUAPI.SUInitialize
+at_exit { SUAPI.SUTerminate }
 
 # ── Sketchup module ─────────────────────────────────────────────────────────
 module Sketchup
