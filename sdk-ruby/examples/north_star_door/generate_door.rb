@@ -72,7 +72,7 @@ LAYER_COLORS = {
   'VerticalFrame'   => [140, 140, 140],
   'HorizontalFrame' => [130, 130, 130],
   'Divider'         => [160, 160, 155],
-  'Glass'           => [180, 210, 240],
+  'Glass'           => [0,   255, 255],  # cyan — must paint both faces (see add_box)
   'Handle'          => [80,  80,  80 ],
   'Other'           => [100, 100, 100]
 }.freeze
@@ -173,9 +173,10 @@ def add_box(entities, matrix, bw, bh, bt, layer, mat)
   quads.each do |q|
     f = entities.add_face(*q)
     next unless f
-    f.layer    = layer
-    f.material = mat
-    created   += 1
+    f.layer         = layer
+    f.material      = mat   # front face
+    f.back_material = mat   # back face — prevents default bluish back color
+    created        += 1
   end
   created
 end

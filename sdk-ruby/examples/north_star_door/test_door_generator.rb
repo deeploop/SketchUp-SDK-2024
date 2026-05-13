@@ -34,6 +34,15 @@ PROFILE_DB = {
   'LS' => { w: 33.0,  d: 34.0 }
 }.freeze
 
+LAYER_COLORS = {
+  'VerticalFrame'   => [140, 140, 140],
+  'HorizontalFrame' => [130, 130, 130],
+  'Divider'         => [160, 160, 155],
+  'Glass'           => [0,   255, 255],
+  'Handle'          => [80,  80,  80 ],
+  'Other'           => [100, 100, 100]
+}.freeze
+
 def parse_boards(arr)
   boards = []
   i = 0
@@ -131,14 +140,14 @@ class TestNorthStarParser < Minitest::Test
 
   # ── Board parsing ───────────────────────────────────────────────────────────
 
-  def test_parse_finds_five_boards
+  def test_parse_finds_seven_boards
     boards = parse_boards(@raw)
-    assert_equal 5, boards.size, 'Expected 5 Board records (root + 4 parts)'
+    assert_equal 7, boards.size, 'Expected 7 Board records (root + 6 parts)'
   end
 
   def test_board_ids_are_sequential
     boards = parse_boards(@raw)
-    assert_equal [100, 101, 102, 103, 104], boards.map { |b| b[:id] }
+    assert_equal [100, 101, 102, 103, 104, 105, 106], boards.map { |b| b[:id] }
   end
 
   def test_root_board_zero_dimensions
@@ -199,6 +208,73 @@ class TestNorthStarParser < Minitest::Test
     assert_includes names, 'LS立框'
     assert_includes names, '長虹玻璃'
     assert_includes names, '分隔條'
+    assert_includes names, '上橫檔', 'Top rail must be present'
+    assert_includes names, '下橫檔', 'Bottom rail must be present'
+  end
+
+  def test_top_rail_dimensions
+    b = parse_boards(@raw).find { |x| x[:id] == 105 }
+    refute_nil b, 'Board 105 (Top Rail) must exist'
+    assert_in_delta 734.0, b[:width],     0.01
+    assert_in_delta 33.0,  b[:height],    0.01
+    assert_in_delta 34.0,  b[:thickness], 0.01
+  end
+
+  def test_top_rail_translation
+    b = parse_boards(@raw).find { |x| x[:id] == 105 }
+    tx, ty, tz = translation(b[:matrix])
+    assert_in_delta 33.0,  tx, 0.01
+    assert_in_delta 0.0,   ty, 0.01
+    # Top rail Z = frame_h - rail_profile_h = 2336 - 33 = 2303
+    assert_in_delta 2303.0, tz, 0.01
+  end
+
+  def test_bottom_rail_dimensions
+    b = parse_boards(@raw).find { |x| x[:id] == 106 }
+    refute_nil b, 'Board 106 (Bottom Rail) must exist'
+    assert_in_delta 734.0, b[:width],     0.01
+    assert_in_delta 33.0,  b[:height],    0.01
+    assert_in_delta 34.0,  b[:thickness], 0.01
+  end
+
+  def test_bottom_rail_at_z_zero
+    b = parse_boards(@raw).find { |x| x[:id] == 106 }
+    _, _, tz = translation(b[:matrix])
+    assert_in_delta 0.0, tz, 0.01, 'Bottom rail must sit at Z=0'
+  end
+
+  def test_rail_width_equals_door_width_minus_two_frames
+    params  = parse_template_params(@raw)
+    profile = PROFILE_DB[params['Profile'].to_s.upcase]
+    expected_rail_w = params['L'] - 2 * profile[:w]   # 800 - 66 = 734
+    top_rail = parse_boards(@raw).find { |x| x[:id] == 105 }
+    assert_in_delta expected_rail_w, top_rail[:width], 0.01
+  end
+
+  def test_top_rail_z_equals_frame_height_minus_rail_height
+    params    = parse_template_params(@raw)
+    frame_h   = params['H'] - HEIGHT_DEDUCTION[params['SystemType']]
+    profile   = PROFILE_DB[params['Profile'].to_s.upcase]
+    expected_z = frame_h - profile[:w]                 # 2336 - 33 = 2303
+    top_rail   = parse_boards(@raw).find { |x| x[:id] == 105 }
+    _, _, tz   = translation(top_rail[:matrix])
+    assert_in_delta expected_z, tz, 0.01
+  end
+
+  def test_rails_classified_as_horizontal_frame
+    boards = parse_boards(@raw)
+    [105, 106].each do |rail_id|
+      b    = boards.find { |x| x[:id] == rail_id }
+      type = classify_part(b[:name])
+      assert_equal :horizontal_frame, type, "Board #{rail_id} must be :horizontal_frame"
+    end
+  end
+
+  def test_glass_layer_color_is_cyan
+    cyan = LAYER_COLORS['Glass']
+    assert_equal 0,   cyan[0], 'R'
+    assert_equal 255, cyan[1], 'G'
+    assert_equal 255, cyan[2], 'B'
   end
 
   def test_hardware_types
@@ -354,22 +430,21 @@ class TestNorthStarParser < Minitest::Test
     boards = parse_boards(@raw)
     valid  = boards.reject { |b| b[:width] == 0.0 && b[:height] == 0.0 }
     types  = valid.map { |b| classify_part(b[:name]) }.uniq
-    # Exactly 3 unique types in this instance: vertical_frame, glass, divider
-    assert_equal 3, types.size
+    # 4 unique types: vertical_frame, glass, divider, horizontal_frame (top+bottom rails)
+    assert_equal 4, types.size
     assert_includes types, :vertical_frame
     assert_includes types, :glass
     assert_includes types, :divider
+    assert_includes types, :horizontal_frame, 'Top/Bottom rails must be classified as horizontal_frame'
     refute_includes types, :handle,           'No handle boards in sample'
-    refute_includes types, :horizontal_frame, 'No horizontal-frame boards in sample'
   end
 
   def test_expected_material_count_matches_unique_types
     boards = parse_boards(@raw)
     valid  = boards.reject { |b| b[:width] == 0.0 && b[:height] == 0.0 }
     unique_types = valid.map { |b| classify_part(b[:name]) }.uniq.size
-    # Verification expects one material per unique part type seen — NOT a global
-    # constant like LAYER_COLORS.size — so unused types don't inflate the count.
-    assert_equal 3, unique_types
+    # 4 types now: vertical_frame, glass, divider, horizontal_frame
+    assert_equal 4, unique_types
   end
 
   # ── Config / instance consistency ────────────────────────────────────────────
