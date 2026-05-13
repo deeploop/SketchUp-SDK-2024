@@ -346,6 +346,32 @@ class TestNorthStarParser < Minitest::Test
     assert_in_delta expected, tx, 0.01, 'Right frame X must be L - frame_width'
   end
 
+  # ── On-demand material count ─────────────────────────────────────────────────
+  # Only part types that appear in the JSON should generate a material.
+  # The sample has: 立框 (×2 boards, 1 type), 玻璃, 分隔條 → 3 unique types.
+
+  def test_unique_part_types_in_sample
+    boards = parse_boards(@raw)
+    valid  = boards.reject { |b| b[:width] == 0.0 && b[:height] == 0.0 }
+    types  = valid.map { |b| classify_part(b[:name]) }.uniq
+    # Exactly 3 unique types in this instance: vertical_frame, glass, divider
+    assert_equal 3, types.size
+    assert_includes types, :vertical_frame
+    assert_includes types, :glass
+    assert_includes types, :divider
+    refute_includes types, :handle,           'No handle boards in sample'
+    refute_includes types, :horizontal_frame, 'No horizontal-frame boards in sample'
+  end
+
+  def test_expected_material_count_matches_unique_types
+    boards = parse_boards(@raw)
+    valid  = boards.reject { |b| b[:width] == 0.0 && b[:height] == 0.0 }
+    unique_types = valid.map { |b| classify_part(b[:name]) }.uniq.size
+    # Verification expects one material per unique part type seen — NOT a global
+    # constant like LAYER_COLORS.size — so unused types don't inflate the count.
+    assert_equal 3, unique_types
+  end
+
   # ── Config / instance consistency ────────────────────────────────────────────
 
   def test_config_divider_rules_match_constants

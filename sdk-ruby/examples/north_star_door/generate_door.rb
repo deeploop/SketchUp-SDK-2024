@@ -260,15 +260,9 @@ materials = model.materials
 
 layer_cache = {}
 mat_cache   = {}
-LAYER_COLORS.each do |type_name, rgb|
-  layer_cache[type_name] = layers.add(type_name)
-  m = materials.add("#{type_name}_Mat")
-  m.color = Sketchup::Color.new(*rgb)
-  mat_cache[type_name] = m
-end
 
 puts 'Building geometry...'
-total_faces = 0
+total_faces  = 0
 valid_boards = 0
 
 boards.each do |b|
@@ -277,8 +271,19 @@ boards.each do |b|
 
   type_key  = classify_part(b[:name])
   type_name = PART_LAYERS[type_key]
-  layer     = layer_cache[type_name]
-  mat       = mat_cache[type_name]
+
+  # Create layer + material on first encounter of each part type.
+  # Lazy SDK commit in Material#handle means materials MUST be assigned to
+  # at least one face before save — creating them here guarantees that.
+  unless layer_cache[type_name]
+    layer_cache[type_name] = layers.add(type_name)
+    m = materials.add("#{type_name}_Mat")
+    m.color = Sketchup::Color.new(*LAYER_COLORS[type_name])
+    mat_cache[type_name] = m
+  end
+
+  layer = layer_cache[type_name]
+  mat   = mat_cache[type_name]
 
   n = add_box(entities, b[:matrix], b[:width], b[:height], b[:thickness], layer, mat)
   total_faces  += n
@@ -310,8 +315,12 @@ v     = Sketchup::Model.open(output_path)
 stats = v.statistics
 v.close
 
-expected_faces = valid_boards * 6  # 6 quads per box
-expected_layers = LAYER_COLORS.size + 1  # user layers + default Layer0
+# Expected counts derived from what was actually created — not a hard-coded
+# constant — so adding new board types to the JSON never causes a mismatch.
+expected_faces     = valid_boards * 6        # 6 quads per box
+expected_user_lyr  = layer_cache.size        # one layer per unique part type seen
+expected_layers    = expected_user_lyr + 1   # +1 for SketchUp's default Layer0
+expected_materials = mat_cache.size          # one material per unique part type seen
 
 puts '  %-22s  expected=%-4d  actual=%-4d  [%s]' % [
   'faces', expected_faces, stats[:faces],
@@ -322,15 +331,15 @@ puts '  %-22s  expected=%-4d  actual=%-4d  [%s]' % [
   stats[:layers] == expected_layers ? 'OK' : 'MISMATCH'
 ]
 puts '  %-22s  expected=%-4d  actual=%-4d  [%s]' % [
-  'materials', LAYER_COLORS.size, stats[:materials],
-  stats[:materials] == LAYER_COLORS.size ? 'OK' : 'MISMATCH'
+  'materials', expected_materials, stats[:materials],
+  stats[:materials] == expected_materials ? 'OK' : 'MISMATCH'
 ]
 puts '  %-22s  actual=%-4d' % ['edges', stats[:edges]]
 
 errors = []
-errors << "faces: expected #{expected_faces}, got #{stats[:faces]}"    if stats[:faces]    != expected_faces
-errors << "layers: expected #{expected_layers}, got #{stats[:layers]}"  if stats[:layers]   != expected_layers
-errors << "materials: expected #{LAYER_COLORS.size}, got #{stats[:materials]}" if stats[:materials] != LAYER_COLORS.size
+errors << "faces: expected #{expected_faces}, got #{stats[:faces]}"         if stats[:faces]     != expected_faces
+errors << "layers: expected #{expected_layers}, got #{stats[:layers]}"      if stats[:layers]    != expected_layers
+errors << "materials: expected #{expected_materials}, got #{stats[:materials]}" if stats[:materials] != expected_materials
 
 puts
 if errors.empty?
