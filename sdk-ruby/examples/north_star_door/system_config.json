@@ -1,0 +1,43 @@
+{
+  "system_info": {
+    "brand": "North Star (北二高)",
+    "version": "2025.12",
+    "unit": "mm"
+  },
+  "lut_offsets": {
+    "anchor":        "Board",
+    "id":            1,
+    "matrix":        5,
+    "width":         6,
+    "height":        7,
+    "thickness":     8,
+    "name":          10,
+    "category":      11,
+    "hardware_type": 12
+  },
+  "compact_record_size": 13,
+  "formulas": {
+    "suspended_clearance":   { "top": 47, "bottom": 17, "total_deduction": 64 },
+    "floor_sliding_clearance": { "top": 32, "bottom": 0,  "total_deduction": 32 },
+    "pivot_clearance":       { "top": 16, "bottom": 15,  "side": 7 },
+    "divider_matching": [
+      { "panel_thickness_lte": 5,  "rod_width": 10 },
+      { "panel_thickness_range": [6, 11], "rod_width": 20 }
+    ],
+    "buffer_limit": { "min_panel_width": 700 }
+  },
+  "profile_database": {
+    "LC": { "w": 16.0,  "d": 30.0, "style": "Ultra-Slim"    },
+    "LD": { "w": 22.5,  "d": 34.0, "style": "Elegant"        },
+    "LE": { "w": 33.0,  "d": 30.0, "style": "Curved"         },
+    "LS": { "w": 33.0,  "d": 34.0, "style": "Standard/Heavy" }
+  },
+  "material_colors": {
+    "VerticalFrame":   [140, 140, 140],
+    "HorizontalFrame": [130, 130, 130],
+    "Divider":         [160, 160, 155],
+    "Glass":           [180, 210, 240],
+    "Handle":          [80,  80,  80 ],
+    "Other":           [100, 100, 100]
+  }
+}

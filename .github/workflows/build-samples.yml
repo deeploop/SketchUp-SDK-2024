@@ -137,3 +137,76 @@ jobs:
           name: ruby-generated-skp
           path: sdk-ruby/examples/RubyOfficeBuilding.skp
           retention-days: 30
+
+  # ============================================================
+  # Job 3: North Star door generator — JSON → 3D SKP
+  # Phase A: pure-Ruby unit tests (no SDK, any platform)
+  # Phase B: full 3D SKP generation (Windows, needs SketchUpAPI.dll)
+  # ============================================================
+  north-star-door:
+    name: North Star Door Generator (JSON → SKP)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Phase A: pure-Ruby unit tests (no SDK required) ───────────────────
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: Unit tests — parser, formulas, matrix transforms
+        working-directory: sdk-ruby/examples/north_star_door
+        run: ruby test_door_generator.rb --verbose
+
+      # ── Copy SDK DLLs (needed for Phase B) ────────────────────────────────
+      - name: Copy SDK DLLs to sdk-ruby/bin/
+        run: |
+          New-Item -ItemType Directory -Force -Path sdk-ruby\bin | Out-Null
+          Copy-Item binaries\sketchup\x64\*.dll sdk-ruby\bin\
+          Write-Host "=== sdk-ruby\bin\ ==="
+          dir sdk-ruby\bin\
+
+      - name: Verify SDK DLL loadability
+        run: |
+          $cs = 'using System; using System.Runtime.InteropServices; public class NL { [DllImport("kernel32",SetLastError=true)] public static extern IntPtr LoadLibraryEx(string f, IntPtr h, uint d); }'
+          Add-Type -TypeDefinition $cs
+          $binDir = (Resolve-Path "sdk-ruby\bin").Path
+          foreach ($dll in @("SketchUpCommonPreferences.dll","SketchUpAPI.dll")) {
+            $full = Join-Path $binDir $dll
+            if (-not (Test-Path $full)) { throw "MISSING: $dll" }
+            $h = [NL]::LoadLibraryEx($full, [IntPtr]::Zero, 8)
+            if ($h -eq [IntPtr]::Zero) {
+              $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+              throw "LoadLibraryEx FAILED: $dll  Win32Error=$err"
+            }
+            Write-Host "LOADABLE: $dll"
+          }
+          Write-Host "All DLLs OK"
+
+      - name: Install ffi gem
+        working-directory: sdk-ruby
+        run: gem install ffi --no-document
+
+      # ── Phase B: generate NorthStarDoor.skp ───────────────────────────────
+      - name: Generate NorthStarDoor.skp (JSON → 3D SKP)
+        working-directory: sdk-ruby/examples/north_star_door
+        run: ruby generate_door.rb
+
+      - name: Show generated file info
+        working-directory: sdk-ruby/examples/north_star_door
+        run: |
+          dir NorthStarDoor.skp
+          Write-Host "North Star door SKP generated successfully"
+
+      # ── Artifacts ─────────────────────────────────────────────────────────
+      - name: Upload NorthStarDoor.skp
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: north-star-door-skp
+          path: sdk-ruby/examples/north_star_door/NorthStarDoor.skp
+          retention-days: 30
