@@ -497,3 +497,81 @@ jobs:
             sdk-ruby/examples/north_star_door_v3/ls_folding_instance.skp
             sdk-ruby/examples/north_star_door_v3/f1_cabinet_instance.skp
           retention-days: 30
+
+  # ============================================================
+  # Job 7: Aluminum Frame Builder — JSON → grouped SKP
+  # Demonstrates:
+  #   - SUFaceAddInnerLoop  (hollow cross-section end caps)
+  #   - SUGuideLineCreateFinite (hinge position guide lines)
+  #   - 4 rod groups (BottomRod/TopRod/LeftRod/RightRod) per frame
+  #
+  # Profile: LS-series 19×22mm aluminum channel (OUTER_PROFILE 8pts, INNER 6pts)
+  # Each rod = 2 hollow caps + 8 outer walls + 6 inner walls = 16 faces
+  # ============================================================
+  aluminum-frame-builder:
+    name: Aluminum Frame Builder (JSON → SKP, hollow cross-section)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Phase A: pure-Ruby geometry tests (no SDK) ────────────────────────
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: "Phase A: Unit tests — profile geometry, projectors, validator (pure Ruby)"
+        working-directory: sdk-ruby/examples/aluminum_frame_builder
+        run: ruby test_frame_logic.rb --verbose
+
+      # ── Copy SDK DLLs ─────────────────────────────────────────────────────
+      - name: Copy SDK DLLs to sdk-ruby/bin/
+        run: |
+          New-Item -ItemType Directory -Force -Path sdk-ruby\bin | Out-Null
+          Copy-Item binaries\sketchup\x64\*.dll sdk-ruby\bin\
+          Write-Host "=== sdk-ruby\bin\ ==="
+          dir sdk-ruby\bin\
+
+      - name: Verify SDK DLL loadability
+        run: |
+          $cs = 'using System; using System.Runtime.InteropServices; public class NL { [DllImport("kernel32",SetLastError=true)] public static extern IntPtr LoadLibraryEx(string f, IntPtr h, uint d); }'
+          Add-Type -TypeDefinition $cs
+          $binDir = (Resolve-Path "sdk-ruby\bin").Path
+          foreach ($dll in @("SketchUpCommonPreferences.dll","SketchUpAPI.dll")) {
+            $full = Join-Path $binDir $dll
+            if (-not (Test-Path $full)) { throw "MISSING: $dll" }
+            $h = [NL]::LoadLibraryEx($full, [IntPtr]::Zero, 8)
+            if ($h -eq [IntPtr]::Zero) {
+              $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+              throw "LoadLibraryEx FAILED: $dll  Win32Error=$err"
+            }
+            Write-Host "LOADABLE: $dll"
+          }
+          Write-Host "All DLLs OK"
+
+      - name: Install ffi gem
+        working-directory: sdk-ruby
+        run: gem install ffi --no-document
+
+      # ── Phase B: generate window_frame.skp ────────────────────────────────
+      - name: "Phase B: Generate window_frame.skp (800×1000mm, 3-hinge, hollow cross-section)"
+        working-directory: sdk-ruby/examples/aluminum_frame_builder
+        run: ruby generate_frame.rb window_frame.json
+
+      - name: Show generated file info
+        working-directory: sdk-ruby/examples/aluminum_frame_builder
+        run: |
+          dir window_frame.skp
+          Write-Host "Aluminum frame SKP generated (hollow LS-profile, 4 rod groups, 3 hinge guides)"
+
+      # ── Artifact ──────────────────────────────────────────────────────────
+      - name: Upload aluminum frame SKP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aluminum-frame-skp
+          path: sdk-ruby/examples/aluminum_frame_builder/window_frame.skp
+          retention-days: 30

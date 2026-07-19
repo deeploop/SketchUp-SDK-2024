@@ -1,0 +1,11 @@
+{
+  "product_code":    "AF-LS-800x1000",
+  "product_series":  "LS",
+  "width":           800,
+  "height":          1000,
+  "hinges":          [100, 500, 100],
+  "material_color":  "aluminum",
+  "profile":         "LS-19x22",
+  "room":            "客廳",
+  "notes":           "Standard LS-series aluminum window frame, 3-point hinge layout"
+}

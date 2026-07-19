@@ -69,9 +69,17 @@ module SUAPI
   # ── Face ───────────────────────────────────────────────────────────────
   # SUFaceCreate(SUFaceRef* out, const SUPoint3D* pts, SULoopInputRef* loop)
   attach_function :SUFaceCreate,           [:pointer, :pointer, :pointer], :int
+  # SUFaceAddInnerLoop(SUFaceRef, const SUPoint3D* inner_pts, SULoopInputRef* loop)
+  attach_function :SUFaceAddInnerLoop,     [:uint64,  :pointer, :pointer], :int
   attach_function :SUFaceSetFrontMaterial, [:uint64, :uint64],             :int
   attach_function :SUFaceSetBackMaterial,  [:uint64, :uint64],             :int
   attach_function :SUFaceToDrawingElement, [:uint64],                      :uint64
+
+  # ── Guide lines (hinge markers) ────────────────────────────────────────
+  # SUGuideLineCreateFinite(SUGuideLineRef*, const SUPoint3D* start, const SUPoint3D* end)
+  attach_function :SUGuideLineCreateFinite,  [:pointer, :pointer, :pointer], :int
+  # SUEntitiesAddGuideLines(SUEntitiesRef, size_t, const SUGuideLineRef[])
+  attach_function :SUEntitiesAddGuideLines,  [:uint64,  :size_t, :pointer], :int
 
   # ── Drawing element ────────────────────────────────────────────────────
   attach_function :SUDrawingElementSetLayer, [:uint64, :uint64], :int
